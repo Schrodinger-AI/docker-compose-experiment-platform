@@ -1,0 +1,48 @@
+version: "3.7"
+services:
+  mongo:
+    image: mongo
+    restart: always
+    volumes:
+      - ./db:/data/db
+    command: mongod --bind_ip 0.0.0.0
+
+  redis:
+    image: redis:alpine
+
+  backend:
+    image: dogforever442/experiment-platform-backend
+    env_file:
+      - path: ./.env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AUTH_TOKEN=${AUTH_TOKEN}
+      - MONGO_URL=mongodb://mongo:27017/
+      - REDIS_HOST=redis
+
+  rq-worker:
+    extends: backend
+    command: rq worker -u redis://redis:6379
+
+  rq-dashboard:
+    extends: backend
+    command: rq-dashboard -u redis://redis:6379
+    ports:
+      - 9181:9181
+
+  frontend:
+    image: dogforever442/experiment-platform-frontend
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
+    volumes:
+      - ./nginx/conf/:/etc/nginx/conf.d/:ro
+      - ./certbot/www:/var/www/certbot/:ro
+      - ./certbot/conf/:/etc/nginx/ssl/:ro
+      
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw
